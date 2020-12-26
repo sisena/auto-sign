@@ -109,7 +109,7 @@ def getSession(user, apis):
         res = requests.post(url=config['login']['api'], data=params, verify=not debug)
     except Exception as e:
         res = requests.post(url='http://127.0.0.1:8080/wisedu-unified-login-api-v1.0/api/login', data=params, verify=not debug)
-    
+
     # cookieStr可以使用手动抓包获取到的cookie，有效期暂时未知，请自己测试
     # cookieStr = str(res.json()['cookies'])
     cookieStr = str(res.json()['cookies'])
@@ -148,6 +148,7 @@ def getUnSignedTasksAndSign(session, apis, user):
         headers=headers, data=json.dumps({}), verify=not debug)
     if len(res.json()['datas']['unSignedTasks']) < 1:
         log('当前没有未签到任务')
+        sendMessageToServerSC('当前没有未签到任务')
         exit(-1)
     # log(res.json())
     for i in range(0, len(res.json()['datas']['unSignedTasks'])):
@@ -160,7 +161,7 @@ def getUnSignedTasksAndSign(session, apis, user):
             }
             task = getDetailTask(session, params, apis)
             form = fillForm(task, session, user, apis)
-            
+
             submitForm(session, user, form, apis)
 
 
@@ -309,10 +310,12 @@ def submitForm(session, user, form, apis):
     message = res.json()['message']
     if message == 'SUCCESS':
         log('自动签到成功')
-        sendMessage('自动签到成功', user['email'])
+        #sendMessage('自动签到成功', user['email'])
+        sendMessageToServerSC('自动签到成功')
     else:
         log('自动签到失败，原因是：' + message)
         # sendMessage('自动签到失败，原因是：' + message, user['email'])
+        sendMessageToServerSC(message)
         exit(-1)
 
 
@@ -326,7 +329,7 @@ def sendMessage(msg, email):
                 log('正在发送邮件通知。。。')
                 log(getTimeStr())
  #               sendMessageWeChat(msg + getTimeStr(), '今日校园自动签到结果通知')
-    
+
                 res = requests.post(url='http://www.zimo.wiki:8080/mail-sender/sendMail',
                             data={'title': '今日校园自动签到结果通知' + getTimeStr(), 'content': msg, 'to': send}, verify=not debug)
                 code = res.json()['code']
@@ -339,6 +342,21 @@ def sendMessage(msg, email):
         log("send failed")
 
 
+# 推送到server酱
+def sendMessageToServerSC(msg):
+    log('正在用server酱进行推送')
+    key = config['serverchan']['sckey']
+    url = "https://sc.ftqq.com/%s.send" % (key)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36'}
+    payload = {'text': '签到结果通知' + str(msg), 'desp': getTimeStr() + str(msg)}
+    res = requests.post(url, params=payload, headers=headers)
+    errmsg = res.json()['errmsg']
+    if errmsg == 'success':
+        log('server酱通知成功')
+    else:
+        log('推送失败')
+        log(res.json())
 
 # 主函数
 def main():
